@@ -53,6 +53,7 @@ dsh plugin --profile desktop add --registry <registry-url> "file:$($home -replac
 | `timeoutMs` | `180000` | 单次调用超时；冷启动会拉起 OneNote，第一次可能较慢 |
 | `extraSections` | 快速笔记 | **独立分区**（不属于任何笔记本的本地分区），按 `path` 指定：形如 `[{ name, path }]`。**必须用 path 而不是 id**——OneNote 每次重启都会重新分配分区 ID，路径才是稳定的；插件会在每次调用时用 `OpenHierarchy(path)` 现查 ID。`OpenHierarchy` **只认反斜杠**，正斜杠路径会解析失败；0.2.2 起插件会自动把 `/` 规范成 `\`，两种写法都能用 |
 | `pageColor` | `#C7EDCC` | 新建/改写页面时写入的页面背景色（`#RRGGBB`、`automatic` 或 `none`；留空 = 跟随 OneNote 默认）。当前值 `#C7EDCC` = RGB(199,237,204) 豆沙绿，显式写死，换机器/换 OneNote 默认色也不会变 |
+| `bulletValues` | `[]` | 逐级 bullet 字形，例如 `[20, 2]`：一级用 20，二级及更深用 2（最后一项自动重复）。非空时覆盖 `bulletValue` |
 | `bulletValue` | `1` | OneNote 的 bullet 字形索引（`one:Bullet bullet="N"`）。实测导出 PDF：`0`=⚫大黑圆、`1`/`2`=•实心点、`3`=○空心、`7`=◊菱形、`4/5/6/8/9`=无字形。**0.5.4 起默认 1**（之前是 2，界面上可能显示成 Ø） |
 | `alignCommentMax` | `80` | `alignCommentColumn="auto"` 时列宽上限；超过上限的超长行只保留 1 个空格 |
 | `pageSize` | **不设置**（Automatic） | 页面尺寸（单位 pt，1pt = 1/72 in）。**默认不设置**，页面沿用 OneNote 的 `Automatic`（本机 A4 竖排）。需要更宽的正文时才配：`{ width, height, landscape, margins: { top, bottom, left, right } }`（如 A3 横排 1190×842 + 36pt 边距 → 正文宽 1118pt ≈ 150 字符/行）。OneNote 的 schema 只接受 `Automatic` 或 `Orientation + Dimensions + Margins` 三件套，宽高必须同时给；配 `"automatic"` 可把页面刷回自动尺寸 |

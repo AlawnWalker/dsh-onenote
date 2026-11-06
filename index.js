@@ -30,6 +30,8 @@ export const DEFAULT_CONFIG = Object.freeze({
   // OneNote bullet glyph index: 0 big black circle, 1 U+2022 (solid dot),
   // 2 U+2022, 3 hollow circle, 7 diamond. 1 is the default from 0.5.4.
   bulletValue: 1,
+  // Optional per-level glyphs, e.g. [20, 2]: level 0 -> 20, level 1 and deeper -> 2.
+  bulletValues: [],
 });
 
 export const TOOL_NAMES = Object.freeze([
@@ -201,9 +203,12 @@ function pickConfig(config = {}) {
   if (!Number.isFinite(merged.alignCommentMax) || merged.alignCommentMax <= 0) {
     merged.alignCommentMax = DEFAULT_CONFIG.alignCommentMax;
   }
-  if (!Number.isFinite(merged.bulletValue) || merged.bulletValue < 0 || merged.bulletValue > 9) {
+  if (!Number.isFinite(merged.bulletValue) || merged.bulletValue < 0) {
     merged.bulletValue = DEFAULT_CONFIG.bulletValue;
   }
+  merged.bulletValues = Array.isArray(merged.bulletValues)
+    ? merged.bulletValues.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value >= 0)
+    : [];
   if (!Array.isArray(merged.extraSections)) merged.extraSections = [];
   merged.extraSections = merged.extraSections
     .filter((entry) => entry && (typeof entry.path === "string" || typeof entry.id === "string"))

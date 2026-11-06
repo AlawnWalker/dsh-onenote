@@ -351,7 +351,17 @@ function Convert-RowsToTableXml($rows) {
     return $sb.ToString()
 }
 
-function Render-OENodes($nodes, $sb) {
+function Get-BulletValueForLevel([int]$depth) {
+    if ($null -ne $script:BulletValues -and $script:BulletValues.Count -gt 0) {
+        $index = $depth
+        if ($index -ge $script:BulletValues.Count) { $index = $script:BulletValues.Count - 1 }
+        if ($index -lt 0) { $index = 0 }
+        return [string]$script:BulletValues[$index]
+    }
+    return [string]$script:BulletValue
+}
+
+function Render-OENodes($nodes, $sb, [int]$depth = 0) {
     foreach ($node in $nodes) {
         $type = [string]$node.type
         if ($type -eq 'table') {
@@ -363,10 +373,11 @@ function Render-OENodes($nodes, $sb) {
         }
         $text = [string]$node.text
         $listXml = ''
+        $levelBullet = Get-BulletValueForLevel $depth
         if ($type -eq 'bullet') {
-            $listXml = '<one:List><one:Bullet bullet="' + $script:BulletValue + '" fontSize="11.0"/></one:List>'
+            $listXml = '<one:List><one:Bullet bullet="' + $levelBullet + '" fontSize="11.0"/></one:List>'
         } elseif ($type -eq 'number') {
-            $listXml = '<one:List><one:Bullet bullet="' + $script:BulletValue + '" fontSize="11.0"/></one:List>'
+            $listXml = '<one:List><one:Bullet bullet="' + $levelBullet + '" fontSize="11.0"/></one:List>'
             $ordinal = 1
             if ($null -ne $node.ordinal -and "$($node.ordinal)" -ne '') { $ordinal = [int]$node.ordinal }
             $text = "$ordinal. " + $text
@@ -381,7 +392,7 @@ function Render-OENodes($nodes, $sb) {
         $children = @($node.children)
         if ($null -ne $node.children -and $children.Count -gt 0) {
             $inner = New-Object System.Text.StringBuilder
-            Render-OENodes $children $inner
+            Render-OENodes $children $inner ($depth + 1)
             [void]$sb.Append('<one:OEChildren>' + $inner.ToString() + '</one:OEChildren>')
         }
         [void]$sb.Append('</one:OE>')
@@ -1360,10 +1371,20 @@ try {
     # silently coerce the whole request into its string representation.
     $payload = Read-JsonFile $Request
     # OneNote bullet glyph index: 0 = big black circle, 1 = U+2022, 2 = U+2022,
-    # 3 = hollow circle, 7 = diamond. 1 is the classic solid dot.
+    # 3 = hollow circle, 6 = star, 7 = diamond, 20 = arrowhead.
     $script:BulletValue = '1'
-    if ($null -ne $payload.params -and $null -ne $payload.params.bulletValue) {
-        $script:BulletValue = [string]$payload.params.bulletValue
+    $script:BulletValues = @()
+    if ($null -ne $payload.params) {
+        if ($null -ne $payload.params.bulletValue) {
+            $script:BulletValue = [string]$payload.params.bulletValue
+        }
+        if ($null -ne $payload.params.bulletValues) {
+            $vals = @($payload.params.bulletValues)
+            if ($vals.Count -gt 0) {
+                $script:BulletValues = @($vals | ForEach-Object { [string]$_ })
+                $script:BulletValue = $script:BulletValues[0]
+            }
+        }
     }
     $action = [string]$payload.action
     $params = $payload.params
