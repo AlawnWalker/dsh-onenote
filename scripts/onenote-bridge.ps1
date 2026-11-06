@@ -340,6 +340,9 @@ function Convert-RowsToTableXml($rows) {
         for ($i = 0; $i -lt $ncols; $i++) {
             $cell = ''
             if ($i -lt $cells.Count -and $null -ne $cells[$i]) { $cell = [string]$cells[$i] }
+            # OneNote entity-encodes ">" inside table cells and the entity shows up
+            # verbatim when the page is read back, so write the full-width form.
+            $cell = $cell.Replace('>', [string][char]0xFF1E)
             [void]$sb.Append('<one:Cell><one:OEChildren><one:OE><one:T>' + (ConvertTo-CData $cell) + '</one:T></one:OE></one:OEChildren></one:Cell>')
         }
         [void]$sb.Append('</one:Row>')
