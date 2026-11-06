@@ -138,21 +138,22 @@ onenote_read(pageId)                → 确认只有目标块变了
 
 ## 已知限制
 
-1. **编号列表用的是「圆点 + 序号」**：`one:Number` 在这版 OneNote 上不论 `numberFormat` 取什么值都报 `0x80042001`；`bullet="0"`（无符号）又被 `0x80042000` 拒绝。所以编号项是带序号的圆点项，读回时按 `1. ` 前缀还原成有序列表。
-2. **`onenote_update` 会删掉页面里所有文本 Outline**（要局部改用 `onenote_edit`）（包括嵌在 Outline 里的图片/墨迹），页面级的独立图片会保留。
-3. **代码块的缩进保留在文本里，但语言标记（```js 的 js）无法保存**。
-4. **首次调用慢**：OneNote 没运行时，COM 会拉起它并做一次同步，`GetHierarchy` 可能要 1–3 分钟，超过 `timeoutMs` 会失败，重试即可。
-5. **COM 与 DSH 沙箱**：OneNote 的 COM 服务器在 DSH 的文件沙箱里会以 `0x80080005 (CO_E_SERVER_EXEC_FAILURE)` 失败。插件运行在宿主进程里不受沙箱限制；但**在 DSH 的 pwsh 工具里手动调 COM 需要非沙箱（完全权限）会话**。
-6. **PowerShell 5.1 的两个坑**（已在本插件中修掉，二次开发注意）：
+1. **不要把 `.one` 放在网络路径上**（UNC `\\host\share`，含 WSL 的映射盘符如 `Z:`）：OneNote 能"打开"但读到 **0 页**，写入只落在它自己的缓存里，关掉就丢。文件必须放本地盘（`C:`/`D:`）。这是实测结论——同一个文件，网络路径 0 页、本地副本 11 页；一次 OneNote 重启后网络分区直接不可用。
+2. **编号列表用的是「圆点 + 序号」**：`one:Number` 在这版 OneNote 上不论 `numberFormat` 取什么值都报 `0x80042001`；`bullet="0"`（无符号）又被 `0x80042000` 拒绝。所以编号项是带序号的圆点项，读回时按 `1. ` 前缀还原成有序列表。
+3. **`onenote_update` 会删掉页面里所有文本 Outline**（要局部改用 `onenote_edit`）（包括嵌在 Outline 里的图片/墨迹），页面级的独立图片会保留。
+4. **代码块的缩进保留在文本里，但语言标记（```js 的 js）无法保存**。
+5. **首次调用慢**：OneNote 没运行时，COM 会拉起它并做一次同步，`GetHierarchy` 可能要 1–3 分钟，超过 `timeoutMs` 会失败，重试即可。
+6. **COM 与 DSH 沙箱**：OneNote 的 COM 服务器在 DSH 的文件沙箱里会以 `0x80080005 (CO_E_SERVER_EXEC_FAILURE)` 失败。插件运行在宿主进程里不受沙箱限制；但**在 DSH 的 pwsh 工具里手动调 COM 需要非沙箱（完全权限）会话**。
+7. **PowerShell 5.1 的两个坑**（已在本插件中修掉，二次开发注意）：
    - `.ps1` 里带中文必须存成 UTF-8 **带 BOM**；本插件的桥接脚本保持纯 ASCII，中文只走 JSON。
    - `param([string]$X)` 的变量有 `[string]` 类型约束，把解析出来的对象赋回同名变量会被转成字符串；另外 `XmlDocument` / `XmlNamespaceManager` 都是 `IEnumerable`，函数 `return` 时要写 `return ,$obj` 阻止被展开。
-7. **工具参数不是任意 JSON Schema**：DSH 的 `defineTool.parameters` 用的是自己的 value schema DSL（只认 `type`/`description`/`enum` 和嵌套对象数组），写 `minimum`、`maximum`、`pattern` 之类会在**激活时**抛 `JsonSchemaError` —— 表现是重启后 `onenote_*` 一个都不出现，日志里也看不到。改参数后必须跑一遍 `node dev/host-contract.mjs`。
-8. **`FindPages` 不可用**（`0x80042019` 或无视 query 返回整棵树）：它依赖 Windows Search 索引，这台机器上没装/没启。所以搜索是插件自己扫层级；正文搜索要开 `includeContent`，代价是逐页 `GetPageContent`。
-9. **`onenote_publish` 的目标路径要用反斜杠**：OneNote 的 `Publish` 对正斜杠路径直接返回 `0x80042006`（看起来像「无效层级」，实际是路径分隔符问题）。桥接里已统一把 `/` 换成 `\`。
-10. **长的 ASCII 图会被页宽折行**：每行代码是一个段落，默认 A4 竖排约 61 个半角字符/行就折行，`├──` 这类树形对齐会被打断。要避免只能调大 `pageSize`（见配置表），或把宽图拆成多段。
-11. **`one:T` 里的文本是 HTML 形态**：OneNote 会把 `< > & "` 存成 `&lt; &gt; &amp; &quot;`，并在需要换字体时插入 `<span style=...>`（例如 `►` 落到 Arial）。**0.1.1 起读取时会自动剥离 span 并解码实体**；在此之前读回会是 `&gt;`、`<span ...>`，看起来像内容损坏——但 `onenote_read` 之外的工具（直接看 XML）仍会看到实体形态。
-12. **建分区的两个坑**（`OpenHierarchy(path, '', [ref]$id, 3)` 的 `cftSection=3`）：同一次实测里我们**没有**观察到自动生成的空白页（新建分区 0 页），但对方环境报告过，所以 `onenote_create_section` 会做防御性清理——仅当新分区恰好 1 页且该页无正文时删除，`keepBlankPage=true` 可关闭；另外用 `UpdateHierarchy` 给**独立分区**改名会被拒 `0x8004200B SECTION_READ_ONLY`，只有笔记本内的分区能改。
-13. **COM 错误映射曾经无效（0.3.0 修）**：PowerShell 把 COM 失败包在 `MethodInvocationException` 里，外层 `HResult` 是 `0x80131501`，真正的 OneNote 码在 `InnerException` 上；而且 `[uint32]` 转**负数** HResult 会抛异常，被 `catch` 吞掉后 `$hex` 恒为 `00000000`。结果 0.3.0 之前**所有** OneNote 错误都落到 `ONENOTE_ERROR`。现在沿 `InnerException` 链查找并先把 HRESULT 转成 Int64，`SECTION_READ_ONLY` / `PAGE_NOT_FOUND` 这些才开始真正返回。
+8. **工具参数不是任意 JSON Schema**：DSH 的 `defineTool.parameters` 用的是自己的 value schema DSL（只认 `type`/`description`/`enum` 和嵌套对象数组），写 `minimum`、`maximum`、`pattern` 之类会在**激活时**抛 `JsonSchemaError` —— 表现是重启后 `onenote_*` 一个都不出现，日志里也看不到。改参数后必须跑一遍 `node dev/host-contract.mjs`。
+9. **`FindPages` 不可用**（`0x80042019` 或无视 query 返回整棵树）：它依赖 Windows Search 索引，这台机器上没装/没启。所以搜索是插件自己扫层级；正文搜索要开 `includeContent`，代价是逐页 `GetPageContent`。
+10. **`onenote_publish` 的目标路径要用反斜杠**：OneNote 的 `Publish` 对正斜杠路径直接返回 `0x80042006`（看起来像「无效层级」，实际是路径分隔符问题）。桥接里已统一把 `/` 换成 `\`。
+11. **长的 ASCII 图会被页宽折行**：每行代码是一个段落，默认 A4 竖排约 61 个半角字符/行就折行，`├──` 这类树形对齐会被打断。要避免只能调大 `pageSize`（见配置表），或把宽图拆成多段。
+12. **`one:T` 里的文本是 HTML 形态**：OneNote 会把 `< > & "` 存成 `&lt; &gt; &amp; &quot;`，并在需要换字体时插入 `<span style=...>`（例如 `►` 落到 Arial）。**0.1.1 起读取时会自动剥离 span 并解码实体**；在此之前读回会是 `&gt;`、`<span ...>`，看起来像内容损坏——但 `onenote_read` 之外的工具（直接看 XML）仍会看到实体形态。
+13. **建分区的两个坑**（`OpenHierarchy(path, '', [ref]$id, 3)` 的 `cftSection=3`）：同一次实测里我们**没有**观察到自动生成的空白页（新建分区 0 页），但对方环境报告过，所以 `onenote_create_section` 会做防御性清理——仅当新分区恰好 1 页且该页无正文时删除，`keepBlankPage=true` 可关闭；另外用 `UpdateHierarchy` 给**独立分区**改名会被拒 `0x8004200B SECTION_READ_ONLY`，只有笔记本内的分区能改。
+14. **COM 错误映射曾经无效（0.3.0 修）**：PowerShell 把 COM 失败包在 `MethodInvocationException` 里，外层 `HResult` 是 `0x80131501`，真正的 OneNote 码在 `InnerException` 上；而且 `[uint32]` 转**负数** HResult 会抛异常，被 `catch` 吞掉后 `$hex` 恒为 `00000000`。结果 0.3.0 之前**所有** OneNote 错误都落到 `ONENOTE_ERROR`。现在沿 `InnerException` 链查找并先把 HRESULT 转成 Int64，`SECTION_READ_ONLY` / `PAGE_NOT_FOUND` 这些才开始真正返回。
 
 ## 开发与测试
 
