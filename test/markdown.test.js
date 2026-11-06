@@ -118,3 +118,14 @@ test("pipes inside table cells are escaped on the way out", () => {
   const markdown = blocksToMarkdown([{ type: "table", rows: [["a|b", "c"]], level: 0 }]);
   assert.match(markdown, /a\\\|b/);
 });
+
+test("indented tree lines become separate paragraphs with EM SPACE indents", () => {
+  const blocks = markdownToBlocks(
+    "kernel_init_freeable()\n  ├─ do_pre_smp_initcalls()\n  └─ do_basic_setup()\n        │    note\n",
+  );
+  assert.deepEqual(blocks.map((b) => b.type), ["para", "para", "para", "para"]);
+  assert.equal(blocks[0].text, "kernel_init_freeable()");
+  assert.equal(blocks[1].text, "　├─ do_pre_smp_initcalls()");
+  assert.equal(blocks[2].text, "　└─ do_basic_setup()");
+  assert.equal(blocks[3].text, "　　　　│    note");
+});
