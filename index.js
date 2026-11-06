@@ -9,7 +9,7 @@ import { OneNoteBridge } from "./lib/bridge.js";
 import { makeToolHandlers, renderResult } from "./lib/tools.js";
 
 export const name = "dsh-onenote";
-export const version = "0.3.1";
+export const version = "0.5.2";
 export const inject = ["tools"];
 
 export const DEFAULT_CONFIG = Object.freeze({
@@ -18,6 +18,13 @@ export const DEFAULT_CONFIG = Object.freeze({
   extraSections: [],
   pageColor: "",
   pageSize: null,
+  // code blocks: each source line gets this prefix (the box-drawing bar keeps
+  // read-back working). "" removes the bar, at the cost of losing the code type
+  // when the page is read back.
+  codePrefix: "│ ",
+  // 0 = leave comments where they are; >0 aligns trailing // comments of one
+  // fenced block to that column (bytes) or, when 0, to longest code + 2.
+  alignCommentColumn: 0,
 });
 
 export const TOOL_NAMES = Object.freeze([
@@ -177,6 +184,10 @@ function pickConfig(config = {}) {
     merged.powershellPath = DEFAULT_CONFIG.powershellPath;
   }
   if (!Number.isFinite(merged.timeoutMs) || merged.timeoutMs <= 0) merged.timeoutMs = DEFAULT_CONFIG.timeoutMs;
+  if (typeof merged.codePrefix !== "string") merged.codePrefix = DEFAULT_CONFIG.codePrefix;
+  // "auto" (or any negative number) = align to longest code + 2; 0 = off.
+  if (merged.alignCommentColumn === "auto" || merged.alignCommentColumn === true) merged.alignCommentColumn = -1;
+  if (!Number.isFinite(merged.alignCommentColumn)) merged.alignCommentColumn = DEFAULT_CONFIG.alignCommentColumn;
   if (!Array.isArray(merged.extraSections)) merged.extraSections = [];
   merged.extraSections = merged.extraSections
     .filter((entry) => entry && (typeof entry.path === "string" || typeof entry.id === "string"))
@@ -231,7 +242,10 @@ export function applyWith({ defineTool, ctx, config = {}, bridge } = {}) {
   }
   const cfg = pickConfig(config);
   const instance = bridge ?? new OneNoteBridge(cfg);
-  const handlers = makeToolHandlers({ bridge: instance });
+  const handlers = makeToolHandlers({
+    bridge: instance,
+    renderOptions: { codePrefix: cfg.codePrefix, alignCommentColumn: cfg.alignCommentColumn },
+  });
   const registered = [];
   for (const toolName of TOOL_NAMES) {
     const def = defineTool({

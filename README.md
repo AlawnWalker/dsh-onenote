@@ -54,6 +54,8 @@ dsh plugin --profile desktop add --registry <registry-url> "file:$($home -replac
 | `extraSections` | 快速笔记 | **独立分区**（不属于任何笔记本的本地分区），按 `path` 指定：形如 `[{ name, path }]`。**必须用 path 而不是 id**——OneNote 每次重启都会重新分配分区 ID，路径才是稳定的；插件会在每次调用时用 `OpenHierarchy(path)` 现查 ID。`OpenHierarchy` **只认反斜杠**，正斜杠路径会解析失败；0.2.2 起插件会自动把 `/` 规范成 `\`，两种写法都能用 |
 | `pageColor` | `#C7EDCC` | 新建/改写页面时写入的页面背景色（`#RRGGBB`、`automatic` 或 `none`；留空 = 跟随 OneNote 默认）。当前值 `#C7EDCC` = RGB(199,237,204) 豆沙绿，显式写死，换机器/换 OneNote 默认色也不会变 |
 | `pageSize` | **不设置**（Automatic） | 页面尺寸（单位 pt，1pt = 1/72 in）。**默认不设置**，页面沿用 OneNote 的 `Automatic`（本机 A4 竖排）。需要更宽的正文时才配：`{ width, height, landscape, margins: { top, bottom, left, right } }`（如 A3 横排 1190×842 + 36pt 边距 → 正文宽 1118pt ≈ 150 字符/行）。OneNote 的 schema 只接受 `Automatic` 或 `Orientation + Dimensions + Margins` 三件套，宽高必须同时给；配 `"automatic"` 可把页面刷回自动尺寸 |
+| `codePrefix` | `"│ "` | 围栏代码块**每个源代码行**的前缀。默认竖线，读回时据此把行识别成 `code` 块；设成 `""` 就不画竖线，代价是这些行读回时变成普通 `para` |
+| `alignCommentColumn` | `0` | 代码块的**行尾注释对齐**：`0` 关闭（默认，输出与旧版逐字节一致）；`"auto"` 按块内最长代码段 + 2 对齐；`N > 0` 对齐到第 N 列。只处理含行尾 `//` 的行，整行注释、`http://`、字符串里的 `//` 都会跳过 |
 
 > 实测参考（默认 A4 竖排、12pt 微软雅黑）：页面 21×29.7cm，左右边距 72pt，正文宽 468pt，**每行约 61 个半角字符 / 30 个汉字**；超过就折行，ASCII 图会错位。想放长代码行就调大 `pageSize`，或者减小 `margins`。
 >
