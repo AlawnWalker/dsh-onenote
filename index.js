@@ -27,6 +27,9 @@ export const DEFAULT_CONFIG = Object.freeze({
   alignCommentColumn: 0,
   // Upper bound for the automatic column (keeps very long lines sane).
   alignCommentMax: 80,
+  // OneNote bullet glyph index: 0 big black circle, 1 U+2022 (solid dot),
+  // 2 U+2022, 3 hollow circle, 7 diamond. 1 is the default from 0.5.4.
+  bulletValue: 1,
 });
 
 export const TOOL_NAMES = Object.freeze([
@@ -197,6 +200,9 @@ function pickConfig(config = {}) {
         : 0;
   if (!Number.isFinite(merged.alignCommentMax) || merged.alignCommentMax <= 0) {
     merged.alignCommentMax = DEFAULT_CONFIG.alignCommentMax;
+  }
+  if (!Number.isFinite(merged.bulletValue) || merged.bulletValue < 0 || merged.bulletValue > 9) {
+    merged.bulletValue = DEFAULT_CONFIG.bulletValue;
   }
   if (!Array.isArray(merged.extraSections)) merged.extraSections = [];
   merged.extraSections = merged.extraSections

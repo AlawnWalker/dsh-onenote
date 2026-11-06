@@ -361,9 +361,9 @@ function Render-OENodes($nodes, $sb) {
         $text = [string]$node.text
         $listXml = ''
         if ($type -eq 'bullet') {
-            $listXml = '<one:List><one:Bullet bullet="2" fontSize="11.0"/></one:List>'
+            $listXml = '<one:List><one:Bullet bullet="' + $script:BulletValue + '" fontSize="11.0"/></one:List>'
         } elseif ($type -eq 'number') {
-            $listXml = '<one:List><one:Bullet bullet="2" fontSize="11.0"/></one:List>'
+            $listXml = '<one:List><one:Bullet bullet="' + $script:BulletValue + '" fontSize="11.0"/></one:List>'
             $ordinal = 1
             if ($null -ne $node.ordinal -and "$($node.ordinal)" -ne '') { $ordinal = [int]$node.ordinal }
             $text = "$ordinal. " + $text
@@ -1185,7 +1185,7 @@ function Action-Edit($params) {
             # the same way as on create (bullet marker + "N. " prefix text).
             $list = $cloneDoc.CreateElement('one', 'List', $script:NS)
             $marker = $cloneDoc.CreateElement('one', 'Bullet', $script:NS)
-            $marker.SetAttribute('bullet', '2')
+            $marker.SetAttribute('bullet', $script:BulletValue)
             $marker.SetAttribute('fontSize', '11.0')
             [void]$list.AppendChild($marker)
             [void]$newOe.AppendChild($list)
@@ -1356,6 +1356,12 @@ try {
     # variables carry a [string] type constraint from the param block and would
     # silently coerce the whole request into its string representation.
     $payload = Read-JsonFile $Request
+    # OneNote bullet glyph index: 0 = big black circle, 1 = U+2022, 2 = U+2022,
+    # 3 = hollow circle, 7 = diamond. 1 is the classic solid dot.
+    $script:BulletValue = '1'
+    if ($null -ne $payload.params -and $null -ne $payload.params.bulletValue) {
+        $script:BulletValue = [string]$payload.params.bulletValue
+    }
     $action = [string]$payload.action
     $params = $payload.params
     if ($null -eq $params) { $params = (New-Object PSObject) }
