@@ -1,6 +1,6 @@
 {
   "name": "dsh-onenote",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "OneNote desktop tools for DSH: list/read/search/create/update/append/publish/delete pages through the local OneNote COM automation interface.",
   "type": "module",
   "main": "index.js",

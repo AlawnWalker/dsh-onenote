@@ -1091,7 +1091,11 @@ function Action-Edit($params) {
     if ($mode -eq '') { Fail 'BAD_ARGUMENT' 'mode is required' }
     $objectId = ''
     if ($null -ne $params.objectId) { $objectId = [string]$params.objectId }
-    if ($objectId -eq '') { Fail 'BAD_ARGUMENT' 'objectId is required (read the page to get block objectIds)' }
+    $find = ''
+    if ($null -ne $params.find) { $find = [string]$params.find }
+    if ($objectId -eq '' -and $find -eq '') {
+        Fail 'BAD_ARGUMENT' 'objectId or find is required (onenote_read with withIds=true gives objectIds)'
+    }
 
     $app = Get-App
     $xml = ''
@@ -1100,10 +1104,24 @@ function Action-Edit($params) {
     $nm = New-NsMgr $doc
 
     $target = $null
-    foreach ($cand in $doc.SelectNodes('//one:OE', $nm)) {
-        if ($cand.GetAttribute('objectID') -eq $objectId) { $target = $cand; break }
+    if ($objectId -ne '') {
+        foreach ($cand in $doc.SelectNodes('//one:OE', $nm)) {
+            if ($cand.GetAttribute('objectID') -eq $objectId) { $target = $cand; break }
+        }
+        if ($null -eq $target) { Fail 'NOT_FOUND' ('no outline element with objectID ' + $objectId) }
+    } else {
+        # Target by text: unique match required, so a partial edit can never hit
+        # the wrong paragraph.
+        $hits = @()
+        foreach ($cand in $doc.SelectNodes('//one:OE', $nm)) {
+            $text = Get-DirectText $cand
+            if ($text -ne '' -and $text.Contains($find)) { $hits += $cand }
+        }
+        if ($hits.Count -eq 0) { Fail 'NOT_FOUND' ('no block contains: ' + $find) }
+        if ($hits.Count -gt 1) { Fail 'AMBIGUOUS' ('find matches ' + $hits.Count + ' blocks; use objectId instead') }
+        $target = $hits[0]
+        $objectId = $target.GetAttribute('objectID')
     }
-    if ($null -eq $target) { Fail 'NOT_FOUND' ('no outline element with objectID ' + $objectId) }
     $outline = Get-OwnerOutline $target
     if ($null -eq $outline) { Fail 'NOT_FOUND' 'target block has no owning outline' }
     $outlineId = $outline.GetAttribute('objectID')

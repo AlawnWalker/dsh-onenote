@@ -227,3 +227,43 @@ test("onenote_edit insertAfter defaults the block kind to para", async () => {
   assert.equal(bridge.calls[0].params.kind, "para");
   assert.equal(bridge.calls[0].params.text, "inserted");
 });
+test("onenote_read withIds returns objectIds per block", async () => {
+  const bridge = fakeBridge(() => ({
+    pageId: "{PAGE}",
+    title: "T",
+    lastModified: "2026-11-06T00:00:00.000Z",
+    blockCount: 2,
+    blocks: [
+      { type: "para", text: "a", level: 0, objectId: "{A}" },
+      { type: "para", text: "b", level: 0, objectId: "{B}" },
+    ],
+  }));
+  const handlers = makeToolHandlers({ bridge });
+  const result = await handlers.onenote_read({ pageId: "{PAGE}", withIds: true });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.blocks.map((block) => block.objectId), ["{A}", "{B}"]);
+});
+
+test("onenote_edit can target a block by unique text", async () => {
+  const bridge = fakeBridge(() => ({ pageId: "{PAGE}", mode: "replaceText", changed: 1 }));
+  const handlers = makeToolHandlers({ bridge });
+  const result = await handlers.onenote_edit({
+    pageId: "{PAGE}",
+    mode: "replaceText",
+    find: "beta",
+    search: "beta",
+    replacement: "BETA",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(bridge.calls[0].params.find, "beta");
+  assert.equal(bridge.calls[0].params.objectId, "");
+});
+
+test("onenote_edit rejects a call without objectId or find", async () => {
+  const bridge = fakeBridge(() => ({ pageId: "{PAGE}" }));
+  const handlers = makeToolHandlers({ bridge });
+  const result = await handlers.onenote_edit({ pageId: "{PAGE}", mode: "deleteBlock" });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "BAD_ARGUMENT");
+  assert.equal(bridge.calls.length, 0);
+});

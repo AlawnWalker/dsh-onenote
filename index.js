@@ -89,7 +89,8 @@ export const TOOL_PARAMETERS = Object.freeze({
   onenote_edit: {
     ...PAGE_LOCATOR,
     mode: str("replaceText | replaceBlock | insertAfter | deleteBlock."),
-    objectId: str("Target block objectId from onenote_read (an outline element ID)."),
+    objectId: str("Target block objectId from onenote_read(withIds=true)."),
+    find: str("Target by unique text instead of objectId (fails when ambiguous)."),
     search: str("replaceText: exact substring to find in that block."),
     replacement: str("replaceText: replacement text (default empty string)."),
     all: bool("replaceText: replace every occurrence instead of the first."),
@@ -124,7 +125,7 @@ export const TOOL_REQUIRED = Object.freeze({
   onenote_create: ["markdown"],
   onenote_update: ["markdown"],
   onenote_append: ["markdown"],
-  onenote_edit: ["mode", "objectId"],
+  onenote_edit: ["mode"],
   onenote_publish: ["path"],
   onenote_delete: [],
   onenote_create_section: ["path"],
