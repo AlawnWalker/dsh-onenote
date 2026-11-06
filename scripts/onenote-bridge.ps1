@@ -1181,11 +1181,19 @@ function Action-Edit($params) {
             if ($kind -eq 'h3') { $delta = 2 }
             $newOe.SetAttribute('style', ('font-size:' + (Format-PtSize ($base + $delta)) + ';'))
         } elseif ($kind -eq 'bullet' -or $kind -eq 'number') {
+            # OneNote requires the bullet attribute; numbered entries are written
+            # the same way as on create (bullet marker + "N. " prefix text).
             $list = $cloneDoc.CreateElement('one', 'List', $script:NS)
             $marker = $cloneDoc.CreateElement('one', 'Bullet', $script:NS)
-            if ($kind -eq 'number') { $marker = $cloneDoc.CreateElement('one', 'Number', $script:NS) }
+            $marker.SetAttribute('bullet', '2')
+            $marker.SetAttribute('fontSize', '11.0')
             [void]$list.AppendChild($marker)
             [void]$newOe.AppendChild($list)
+            if ($kind -eq 'number') {
+                $ordinal = 1
+                if ($null -ne $params.ordinal) { $ordinal = [int]$params.ordinal }
+                $text = [string]$ordinal + '. ' + $text
+            }
         }
         [void]$newOe.AppendChild((New-CdataTextElement $cloneDoc $text))
         [void]$cloneTarget.ParentNode.InsertAfter($newOe, $cloneTarget)
