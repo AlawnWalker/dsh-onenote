@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { alignCodeComments, blocksToMarkdown, findInlineComment, markdownToBlocks } from "../lib/markdown.js";
+import { alignCodeComments, blocksToMarkdown, displayWidth, findInlineComment, markdownToBlocks } from "../lib/markdown.js";
 
 /**
  * Emulate what the bridge does to a block before OneNote stores it:
@@ -129,47 +129,52 @@ test("indented tree lines become separate paragraphs with EM SPACE indents", () 
   assert.equal(blocks[2].text, "　└─ do_basic_setup()");
   assert.equal(blocks[3].text, "　　　　│    note");
 });
-test("findInlineComment skips comments, URLs and string contents", () => {
+test("displayWidth counts CJK as two columns", () => {
+  assert.equal(displayWidth("abc"), 3);
+  assert.equal(displayWidth("中文"), 4);
+  assert.equal(displayWidth("a中b"), 4);
+});
+
+test("findInlineComment follows the trailing-comment rule", () => {
   assert.equal(findInlineComment("// whole line"), -1);
-  assert.equal(findInlineComment('url = "http://x";'), -1);
-  assert.equal(findInlineComment('s = "a // b";'), -1);
-  assert.equal(findInlineComment("int a = 1; // note"), 11);
+  assert.equal(findInlineComment("   // indented whole line"), -1);
+  assert.equal(findInlineComment('url = "http://x"; '), -1);
+  assert.equal(findInlineComment("x = 1; // note"), 7);
+  assert.equal(findInlineComment("a//b"), -1, "needs whitespace before //");
+  // last whitelisted // wins
+  assert.equal(findInlineComment("a = b; // first // second"), 16, "last // wins");
 });
 
-test("alignCodeComments aligns trailing comments to longest code + 2 by default", () => {
-  const lines = ["int a = 1; // one", "long_call(a, b); // two", "// whole", "x;"];
+test("alignCodeComments: auto column includes indentation and CJK width", () => {
+  const lines = ["  int a = 1; // 一", "      long_call(x); // 二", "no comment"];
   const aligned = alignCodeComments(lines, 0);
-  const columns = aligned
-    .map((line) => ({ line, index: findInlineComment(line) }))
-    .filter((entry) => entry.index > 0)
-    .map((entry) => entry.index);
-  assert.equal(new Set(columns).size, 1, "all comments share one column");
-  assert.equal(aligned[2], "// whole");
-  assert.equal(aligned[3], "x;");
+  const widths = aligned.slice(0, 2).map((line) => displayWidth(line.slice(0, line.indexOf("//"))));
+  assert.equal(widths[0], widths[1], "both comments start at the same column");
+  assert.equal(aligned[2], "no comment", "lines without comments are untouched");
 });
 
-test("alignCodeComments honours an explicit column", () => {
-  const aligned = alignCodeComments(["a; // one", "longer_name; // two"], 30);
-  for (const line of aligned) {
-    assert.equal(findInlineComment(line), 30);
-  }
+test("alignCodeComments: fixed column and the maxColumn cap", () => {
+  const fixed = alignCodeComments(["a; // x", "longer_name; // y"], 30);
+  assert.deepEqual(fixed.map((line) => line.indexOf("//")), [30, 30]);
+  const capped = alignCodeComments(["a".repeat(120) + " // z"], 0, { maxColumn: 80 });
+  assert.equal(capped[0].indexOf("//"), 121, "a too-long line keeps exactly one space");
 });
 
-test("markdownToBlocks: alignCommentColumn works inside a fence only", () => {
+test("alignCodeComments is idempotent", () => {
+  const once = alignCodeComments(["a; // one", "longer_call(); // two"], 0);
+  const twice = alignCodeComments(once, 0);
+  assert.deepEqual(once, twice);
+});
+
+test("markdownToBlocks: alignCommentColumn auto inside a fence only", () => {
   const markdown = ["```c", "int a = 1; // one", "long_call(a, b); // two", "```", "", "int z = 9; // outside", ""].join("\n");
-  const blocks = markdownToBlocks(markdown, { alignCommentColumn: -1 });
+  const blocks = markdownToBlocks(markdown, { alignCommentColumn: "auto" });
   const codeLines = blocks.filter((block) => block.type === "code").map((block) => block.text);
   assert.equal(codeLines.length, 2);
-  const columns = codeLines.map((line) => line.indexOf("//"));
+  const columns = codeLines.map((line) => displayWidth(line.slice(0, line.indexOf("//"))));
   assert.equal(columns[0], columns[1]);
   const outside = blocks.find((block) => block.type === "para");
-  assert.equal(outside.text, "int z = 9; // outside", "paragraphs are not aligned");
-});
-
-test("markdownToBlocks: codePrefix can be empty", () => {
-  const blocks = markdownToBlocks(["```", "int a = 1;", "```", ""].join("\n"), { codePrefix: "" });
-  assert.equal(blocks[0].type, "code");
-  assert.equal(blocks[0].text, "int a = 1;");
+  assert.equal(outside.text, "int z = 9; // outside", "paragraphs are never aligned");
 });
 
 test("markdownToBlocks: alignCommentColumn 0 leaves code untouched", () => {
@@ -179,9 +184,13 @@ test("markdownToBlocks: alignCommentColumn 0 leaves code untouched", () => {
   assert.deepEqual(codeLines, ["│ int a = 1; // one", "│ long_call(a, b); // two"]);
 });
 
+test("markdownToBlocks: codePrefix can be empty", () => {
+  const blocks = markdownToBlocks(["```", "int a = 1;", "```", ""].join("\n"), { codePrefix: "" });
+  assert.equal(blocks[0].type, "code");
+  assert.equal(blocks[0].text, "int a = 1;");
+});
+
 test("markdownToBlocks: default output is unchanged", () => {
   const markdown = ["```c", "int a = 1; // one", "```", ""].join("\n");
-  const plain = markdownToBlocks(markdown);
-  const explicit = markdownToBlocks(markdown, { codePrefix: "│ ", alignCommentColumn: 0 });
-  assert.deepEqual(explicit, plain);
+  assert.deepEqual(markdownToBlocks(markdown, { codePrefix: "│ ", alignCommentColumn: 0 }), markdownToBlocks(markdown));
 });

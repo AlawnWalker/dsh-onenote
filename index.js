@@ -25,6 +25,8 @@ export const DEFAULT_CONFIG = Object.freeze({
   // 0 = leave comments where they are; >0 aligns trailing // comments of one
   // fenced block to that column (bytes) or, when 0, to longest code + 2.
   alignCommentColumn: 0,
+  // Upper bound for the automatic column (keeps very long lines sane).
+  alignCommentMax: 80,
 });
 
 export const TOOL_NAMES = Object.freeze([
@@ -185,9 +187,17 @@ function pickConfig(config = {}) {
   }
   if (!Number.isFinite(merged.timeoutMs) || merged.timeoutMs <= 0) merged.timeoutMs = DEFAULT_CONFIG.timeoutMs;
   if (typeof merged.codePrefix !== "string") merged.codePrefix = DEFAULT_CONFIG.codePrefix;
-  // "auto" (or any negative number) = align to longest code + 2; 0 = off.
-  if (merged.alignCommentColumn === "auto" || merged.alignCommentColumn === true) merged.alignCommentColumn = -1;
-  if (!Number.isFinite(merged.alignCommentColumn)) merged.alignCommentColumn = DEFAULT_CONFIG.alignCommentColumn;
+  // "auto" = longest code + 2 (capped by alignCommentMax); 0 = off; N > 0 = fixed.
+  const column = merged.alignCommentColumn;
+  merged.alignCommentColumn =
+    column === "auto" || column === true
+      ? "auto"
+      : Number.isFinite(column) && column > 0
+        ? column
+        : 0;
+  if (!Number.isFinite(merged.alignCommentMax) || merged.alignCommentMax <= 0) {
+    merged.alignCommentMax = DEFAULT_CONFIG.alignCommentMax;
+  }
   if (!Array.isArray(merged.extraSections)) merged.extraSections = [];
   merged.extraSections = merged.extraSections
     .filter((entry) => entry && (typeof entry.path === "string" || typeof entry.id === "string"))
@@ -244,7 +254,11 @@ export function applyWith({ defineTool, ctx, config = {}, bridge } = {}) {
   const instance = bridge ?? new OneNoteBridge(cfg);
   const handlers = makeToolHandlers({
     bridge: instance,
-    renderOptions: { codePrefix: cfg.codePrefix, alignCommentColumn: cfg.alignCommentColumn },
+    renderOptions: {
+      codePrefix: cfg.codePrefix,
+      alignCommentColumn: cfg.alignCommentColumn,
+      alignCommentMax: cfg.alignCommentMax,
+    },
   });
   const registered = [];
   for (const toolName of TOOL_NAMES) {
